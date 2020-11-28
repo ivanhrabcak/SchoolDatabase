@@ -506,12 +506,20 @@ def get_event_with_most_students(cursor):
 # get the lunch entry that has most
 # people (teachers and students) signed up for
 def get_best_food(cursor):
-    pass
+    cursor.execute("""
+    SELECT (count(sl.studentid) + count(tl.teacherid)) as count_all, count(sl.studentid) as count_students, count(tl.teacherid) as count_teachers, l.name
+    FROM student_lunch_choice sl, teacher_lunch_choices tl, lunches l
+    WHERE sl.lunchid=l.lunchid and tl.lunchid=l.lunchid
+    GROUP BY l.lunchid
+    ORDER BY count_all DESC
+    LIMIT 1
+    """)
+    return cursor.fetchone()
 
 database, cursor = connect_to_db("dbuser", "password")
 
-# create_tables(cursor)
-# database.commit()
+create_tables(cursor)
+database.commit()
 
 print("created tables!")
 
@@ -519,7 +527,7 @@ generate_data(cursor, 15)
 database.commit()
 print("generated data!")
 
-
+print("\n===========================================\n")
 
 worst_teacher = get_worst_teacher(cursor)
 print("The worst teacher is: %s with grade average %f on subject %s." % (worst_teacher[3], worst_teacher[1], worst_teacher[5]))
@@ -532,7 +540,11 @@ print("The parent with most children is %s with %d children." % (largest_family[
 event_with_most_students = get_event_with_most_students(cursor)
 print("The event with most students signed up is %s with %d students signed up." % (event_with_most_students[1], 
                                                                                     event_with_most_students[0]))
-
+lunch_with_most_orders = get_best_food(cursor)
+print("The lunch that most people are signed up for is %s with %d people signed up %d students and %d teachers" % (lunch_with_most_orders[3],
+                                                                                                                     lunch_with_most_orders[0],
+                                                                                                                     lunch_with_most_orders[1],
+                                                                                                                     lunch_with_most_orders[2]))
 
 
 database.close()

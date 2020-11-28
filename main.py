@@ -297,6 +297,7 @@ def generate_data(cursor, amount = 10):
         INSERT INTO events(name, date)
         VALUES (%s, %s)
         """, (get_random_trip_name(), random_date("1/1/2021", "1/1/2022", random.random())))
+    print("generated students, teachers, parents, lunches and events")
     
     # generate families, subjects, sign up students on events
     # make student and teacher lunch choices
@@ -360,6 +361,7 @@ def generate_data(cursor, amount = 10):
         INSERT INTO subjects(teacherid, name)
         VALUES (%s, %s)
         """, (random_teacher, random.choice(subjects)))
+    print("generated families, subjects, signed up students on events, made student and teacher lunch choices")
 
     # generate substitutions
     cursor.execute("""
@@ -388,7 +390,8 @@ def generate_data(cursor, amount = 10):
             VALUES (%s, %s, %s, %s)
             """, (str(teacher_id), str(random_subject),
                 str(substituting_teacher[0]), random_date("1/1/2020", "1/12/2020", random.random())))
-    
+    print("generated substitutions")
+
     # generate missing students
     cursor.execute("""
     select studentid, name from students
@@ -411,7 +414,8 @@ def generate_data(cursor, amount = 10):
             VALUES (%s, %s, %s)
             """, (str(random_subject), str(student_id), 
                       random_date("1/1/2020", "1/12/2020", random.random())))
-    
+    print("generated missing student entries")
+
     # generate grades
     cursor.execute("""
     select subjectid from subjects
@@ -428,6 +432,7 @@ def generate_data(cursor, amount = 10):
                 INSERT INTO grades(subjectid, studentid, grade)
                 VALUES (%s, %s, %s)
                 """, (str(subject_id), str(student_id), random.randint(1, 5)))
+    print("generated grades")
 
 
     # generate teacher subjects
@@ -445,13 +450,14 @@ def generate_data(cursor, amount = 10):
             INSERT INTO teacher_subjects(teacherid, subjectid)
             VALUES (%s, %s)
             """, (str(teacher_id), str(random_subject)))
+    print("assigned subjects to teachers")
 
 # get the teacher that has a subject
 # with the lowest grade average
 def get_worst_teacher(cursor):
     cursor.execute("""
-    select sbid, grade_average, ts.subjectid, t.name, ts.teacherid, sbs.name
-    from (select avg(grade) as grade_average, subjectid as sbid 
+    SELECT sbid, grade_average, ts.subjectid, t.name, ts.teacherid, sbs.name
+    FROM (select avg(grade) as grade_average, subjectid as sbid 
           from grades GROUP BY studentid, subjectid) as sb, teachers t, teacher_subjects ts, subjects sbs
     WHERE sbid=ts.subjectid and t.teacherid=sbid and sbs.subjectid=sbid 
     GROUP BY ts.teacherid, sbid, sb.grade_average, ts.subjectid, t.name, sbs.name 
@@ -459,24 +465,43 @@ def get_worst_teacher(cursor):
     """)
     return cursor.fetchone()
 
-# get the subject that has the worst
-# grade average
-def get_hardest_subject(cursor):
-    pass
-
 # get the teacher that has a subject
 # with the most missing students
 def get_most_boring_teacher(cursor):
-    pass
+    cursor.execute("""
+    SELECT missing_student_count, t.name, sbs.name
+    FROM (SELECT count(ms.missingstudentid) as missing_student_count, ms.subjectid as subject_id 
+          FROM missingstudents ms GROUP BY subject_id) as mstd, teachers t, teacher_subjects ts, subjects sbs
+    WHERE ts.subjectid=sbs.subjectid and subject_id=ts.subjectid
+    ORDER BY missing_student_count DESC
+    LIMIT 1
+    """)
+    return cursor.fetchone()
 
 # get the family with the highest amount
-# of members
+# of members (parent with most children)
 def get_largest_family(cursor):
-    pass
+    cursor.execute("""
+    SELECT p.name as parent_name, s.name as student_name, count(f.studentid) as family_count
+    FROM families f, parents p, students s
+    WHERE f.parentid=p.parentid and f.studentid=s.studentid 
+    GROUP BY f.studentid, p.name, s.name 
+    ORDER BY family_count DESC
+    LIMIT 1
+    """)
+    return cursor.fetchone()
 
 # get the event which has the most signed up students
 def get_event_with_most_students(cursor):
-    pass
+    cursor.execute("""
+    SELECT count(e.studentid) as student_count, ev.name
+    FROM signed_up_student e, events ev
+    WHERE ev.eventid=e.eventid
+    GROUP BY ev.name 
+    ORDER BY student_count DESC
+    LIMIT 1
+    """)
+    return cursor.fetchone()
 
 # get the lunch entry that has most
 # people (teachers and students) signed up for
@@ -490,13 +515,23 @@ database, cursor = connect_to_db("dbuser", "password")
 
 print("created tables!")
 
-# generate_data(cursor)
-# database.commit()
+generate_data(cursor, 15)
+database.commit()
+print("generated data!")
 
 
 
 worst_teacher = get_worst_teacher(cursor)
-print("The worst teacher is: %s with grade average %f on subject %s" % (worst_teacher[3], worst_teacher[1], worst_teacher[5]) )
+print("The worst teacher is: %s with grade average %f on subject %s." % (worst_teacher[3], worst_teacher[1], worst_teacher[5]))
+most_boring_teacher = get_most_boring_teacher(cursor)
+print("The most boring teacher is: %s with %d missing students with subject %s." % (most_boring_teacher[1], 
+                                                                                   most_boring_teacher[0], 
+                                                                                   most_boring_teacher[2]))
+largest_family = get_largest_family(cursor)
+print("The parent with most children is %s with %d children." % (largest_family[0], largest_family[2]))
+event_with_most_students = get_event_with_most_students(cursor)
+print("The event with most students signed up is %s with %d students signed up." % (event_with_most_students[1], 
+                                                                                    event_with_most_students[0]))
 
 
 

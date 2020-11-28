@@ -450,13 +450,14 @@ def generate_data(cursor, amount = 10):
 # with the lowest grade average
 def get_worst_teacher(cursor):
     cursor.execute("""
-    SELECT (t.name, ts.subjectid, g.grade, avg(g.grade)) 
-    FROM teachers t 
-    INNER JOIN teacher_subjects ts ON t.teacherid=ts.teacherid 
-    INNER JOIN grades g ON g.subjectid=ts.subjectid 
-    GROUP BY (t.teacherid, g.gradeid, ts.subjectid)
+    select sbid, grade_average, ts.subjectid, t.name, ts.teacherid, sbs.name
+    from (select avg(grade) as grade_average, subjectid as sbid 
+          from grades GROUP BY studentid, subjectid) as sb, teachers t, teacher_subjects ts, subjects sbs
+    WHERE sbid=ts.subjectid and t.teacherid=sbid and sbs.subjectid=sbid 
+    GROUP BY ts.teacherid, sbid, sb.grade_average, ts.subjectid, t.name, sbs.name 
+    ORDER BY grade_average DESC LIMIT 1
     """)
-    return cursor.fetchall()
+    return cursor.fetchone()
 
 # get the subject that has the worst
 # grade average
@@ -484,12 +485,19 @@ def get_best_food(cursor):
 
 database, cursor = connect_to_db("dbuser", "password")
 
-create_tables(cursor)
-database.commit()
-
-generate_data(cursor)
-database.commit()
-
-database.close()
+# create_tables(cursor)
+# database.commit()
 
 print("created tables!")
+
+# generate_data(cursor)
+# database.commit()
+
+
+
+worst_teacher = get_worst_teacher(cursor)
+print("The worst teacher is: %s with grade average %f on subject %s" % (worst_teacher[3], worst_teacher[1], worst_teacher[5]) )
+
+
+
+database.close()
